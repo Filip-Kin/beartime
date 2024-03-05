@@ -78,7 +78,7 @@ export async function getDateIndex() {
         }
 
         // If the date is not found, add a new column
-        logSheet.resize({
+        await logSheet.resize({
             columnCount: logSheet.columnCount + 1,
             rowCount: logSheet.rowCount
         });
