@@ -1,0 +1,64 @@
+<html>
+    <head>
+        <title>Beartime</title>
+
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@materializecss/materialize@2.0.3-alpha/dist/css/materialize.min.css">
+        
+        <style>
+            .container {
+                position: absolute;
+                top: 40%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                max-width: 60vw;
+            }
+            .flex {
+                display: flex;
+                gap: 10px;
+                align-items: center;
+            }
+            .input-field {
+                width: 100%;
+            }
+            .title {
+                margin: 0 auto;
+                margin-bottom: 20px;
+            }
+        </style>
+   
+    </head>
+    <body>
+        <div class="container center">
+            <div class="title">
+                <h1>Beartime</h1>
+                <img src="/logo.png" height="128px">
+            </div>
+            <form class="row" action="login">
+                <div class="col s12 flex">
+                    <div class="input-field">
+                        <input type="text" name="pin" />
+                        <label>Pin Number</label>
+                    </div>
+                    <button class="btn waves-effect waves-light" type="submit">Submit</button>
+                </div>
+            </form>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/@materializecss/materialize@2.0.3-alpha/dist/js/materialize.min.js"></script>
+        <script>
+            M.AutoInit();
+
+            const form = document.querySelector('form');
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const input = form.querySelector('input[name="pin"]');
+                const pin = input.value;
+                const res = await fetch(`/login?pin=${encodeURIComponent(pin)}`).then(res => res.json());
+                console.log(res);
+
+                M.toast({text: res.msg});
+                input.value = '';
+            });
+        </script>
+    </body>
+</html>

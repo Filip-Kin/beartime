@@ -1,0 +1,233 @@
+<html>
+    <head>
+        <title>Beartime - Stats</title>
+
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@materializecss/materialize@2.0.3-alpha/dist/css/materialize.min.css">
+
+        <style>
+            #time th,
+            #attn th {
+                cursor: pointer;
+            }
+
+            .col {
+                margin: 20px 10px;
+            }
+        </style>
+
+    </head>
+
+    <body>
+        <div class="container center">
+            <div class="row">
+                <div class="col s12">
+                    <h1>Stats</h1>
+                    <table>
+                        <thread>
+                            <tr id="overall-header"></tr>
+                        </thread>
+                        <tbody id="overall-body"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col s12 m6">
+                    <h3>Time</h3>
+                </div>
+                <div class="col s12 m6">
+                    <h3>Attendance</h3>
+                    <div class="switch">
+                        Include Excused Absences
+                        <label>
+                            Off
+                            <input type="checkbox" id="attn-switch">
+                            <span class="lever"></span>
+                            On
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col s12 m6">
+                    <table class="striped" id="time">
+                        <thead>
+                            <tr id="time-header">
+                                <th>Name</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="time-body">
+                        </tbody>
+                    </table>
+                </div>
+                <div class="col s12 m6">
+                    <table class="striped" id="attn">
+                        <thead>
+                            <tr id="attn-header">
+                                <th>Name</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="attn-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <script src="https://cdn.jsdelivr.net/npm/@materializecss/materialize@2.0.3-alpha/dist/js/materialize.min.js"></script>
+            <script>
+                M.AutoInit();
+
+                const MONTHS = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+                async function updateStats() {
+                    const timeHeader = document.getElementById('time-header');
+                    const timeBody = document.getElementById('time-body');
+                    const attnHeader = document.getElementById('attn-header');
+                    const attnBody = document.getElementById('attn-body');
+                    const overallHeader = document.getElementById('overall-header');
+                    const overallBody = document.getElementById('overall-body');
+
+                    const res = await fetch('/stats').then(res => res.json());
+                    const stats = res.stats;
+                    const overall = res.overall;
+                    const months = Object.keys(overall.months);
+                    console.log(res, months);
+
+                    overallHeader.innerHTML = '<th></th>';
+                    overallHeader.innerHTML += months.map(month => `<th>${MONTHS[month]}</th>`).join('');
+                    overallHeader.innerHTML += '<th>Total</th>';
+                    overallBody.innerHTML = '';
+
+                    const timeRow = document.createElement('tr');
+                    timeRow.innerHTML = '<td>Hours</td>';
+                    for (const month of months) {
+                        timeRow.innerHTML += `<td>${overall.months[month].hours.toFixed(2)}</td>`;
+                    }
+                    timeRow.innerHTML += `<td>${overall.hours.toFixed(2)}</td>`;
+                    overallBody.appendChild(timeRow);
+
+                    const attnRow = document.createElement('tr');
+                    attnRow.innerHTML = '<td>Attendance</td>';
+                    for (const month of months) {
+                        attnRow.innerHTML += `<td>${overall.months[month].attendance.toFixed(1)}%</td>`;
+                    }
+                    attnRow.innerHTML += `<td>${overall.attendance.toFixed(1)}%</td>`;
+                    overallBody.appendChild(attnRow);
+
+                    const attnExcusedRow = document.createElement('tr');
+                    attnExcusedRow.innerHTML = '<td>Attendance (+Excused)</td>';
+                    for (const month of months) {
+                        attnExcusedRow.innerHTML += `<td>${overall.months[month].attendanceWithExcused.toFixed(1)}%</td>`;
+                    }
+                    attnExcusedRow.innerHTML += `<td>${overall.attendanceWithExcused.toFixed(1)}%</td>`;
+                    overallBody.appendChild(attnExcusedRow);
+
+                    updateTime(stats, months);
+
+
+                    updateAttn(stats, months);
+
+
+                    document.getElementById('attn-switch').addEventListener('change', () => {
+                        const switchState = document.getElementById('attn-switch').checked;
+                        updateAttn(stats, months, switchState);
+                    });
+                }
+
+                function updateAttn(stats, months, excused = false) {
+                    const attnHeader = document.getElementById('attn-header');
+                    const attnBody = document.getElementById('attn-body');
+
+                    attnHeader.innerHTML = '<th>Name</th>';
+                    attnBody.innerHTML = '';
+
+                    for (const month of months) {
+                        attnHeader.innerHTML += `<th>${month}</th>`;
+                    }
+
+                    attnHeader.innerHTML += `<th>Total</th>`;
+                    stats.sort((a, b) => b[(excused) ? 'attendanceWithExcused' : 'attendance'] - a[(excused) ? 'attendanceWithExcused' : 'attendance']);
+
+                    for (const user of stats) {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `<td>${user.name}</td>`;
+                        for (const month of months) {
+                            if (user.months[month]) {
+                                row.innerHTML += `<td>${user.months[month][(excused) ? 'attendanceWithExcused' : 'attendance'].toFixed(1)}%</td>`;
+                            } else {
+                                row.innerHTML += `<td>0%</td>`;
+                            }
+                        }
+                        row.innerHTML += `<td>${user[(excused) ? 'attendanceWithExcused' : 'attendance'].toFixed(1)}%</td>`;
+                        attnBody.appendChild(row);
+                    }
+                    
+                    for (let header of document.querySelectorAll('#attn th')) {
+                        if (header.innerText != 'Name') {
+                            header.addEventListener('click', () => {
+                                const index = Array.from(header.parentElement.children).indexOf(header);
+                                const rows = Array.from(attnBody.children);
+                                rows.sort((a, b) => {
+                                    const aHours = parseInt(a.children[index].innerText);
+                                    const bHours = parseInt(b.children[index].innerText);
+                                    return bHours - aHours;
+                                });
+                                attnBody.innerHTML = '';
+                                for (const row of rows) {
+                                    attnBody.appendChild(row);
+                                }
+                            });
+                        }
+                    }
+                }
+
+                function updateTime(stats, months) {
+                    const timeHeader = document.getElementById('time-header');
+                    const timeBody = document.getElementById('time-body');
+
+                    for (const month of months) {
+                        timeHeader.innerHTML += `<th>${month}</th>`;
+                    }
+
+                    timeHeader.innerHTML += `<th>Total</th>`;
+
+                    stats.sort((a, b) => b.hours - a.hours);
+
+                    for (const user of stats) {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `<td>${user.name}</td>`;
+                        for (const month of months) {
+                            if (user.months[month]) {
+                                row.innerHTML += `<td>${user.months[month].hours.toFixed(2)}</td>`;
+                            } else {
+                                row.innerHTML += `<td>0</td>`;
+                            }
+                        }
+                        row.innerHTML += `<td>${user.hours.toFixed(2)}</td>`;
+                        timeBody.appendChild(row);
+                    }
+                    
+                    for (let header of document.querySelectorAll('#time th')) {
+                        if (header.innerText != 'Name') {
+                            header.addEventListener('click', () => {
+                                const index = Array.from(header.parentElement.children).indexOf(header);
+                                const rows = Array.from(timeBody.children);
+                                rows.sort((a, b) => {
+                                    const aHours = parseFloat(a.children[index].innerText);
+                                    const bHours = parseFloat(b.children[index].innerText);
+                                    return bHours - aHours;
+                                });
+                                timeBody.innerHTML = '';
+                                for (const row of rows) {
+                                    timeBody.appendChild(row);
+                                }
+                            });
+                        }
+                    }
+                }
+
+                updateStats();
+            </script>
+    </body>
+</html>
