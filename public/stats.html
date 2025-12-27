@@ -80,6 +80,13 @@
 
                 const MONTHS = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
+                function fmt(num, digits) {
+                    if (typeof num !== 'number' || !isFinite(num)) {
+                        return '0';
+                    }
+                    return num.toFixed(digits);
+                }
+
                 async function updateStats() {
                     const timeHeader = document.getElementById('time-header');
                     const timeBody = document.getElementById('time-body');
@@ -102,25 +109,25 @@
                     const timeRow = document.createElement('tr');
                     timeRow.innerHTML = '<td>Hours</td>';
                     for (const month of months) {
-                        timeRow.innerHTML += `<td>${overall.months[month].hours.toFixed(2)}</td>`;
+                        timeRow.innerHTML += `<td>${fmt(overall.months[month].hours, 2)}</td>`;
                     }
-                    timeRow.innerHTML += `<td>${overall.hours.toFixed(2)}</td>`;
+                    timeRow.innerHTML += `<td>${fmt(overall.hours, 2)}</td>`;
                     overallBody.appendChild(timeRow);
 
                     const attnRow = document.createElement('tr');
                     attnRow.innerHTML = '<td>Attendance</td>';
                     for (const month of months) {
-                        attnRow.innerHTML += `<td>${overall.months[month].attendance.toFixed(1)}%</td>`;
+                        attnRow.innerHTML += `<td>${fmt(overall.months[month].attendance, 1)}%</td>`;
                     }
-                    attnRow.innerHTML += `<td>${overall.attendance.toFixed(1)}%</td>`;
+                    attnRow.innerHTML += `<td>${fmt(overall.attendance, 1)}%</td>`;
                     overallBody.appendChild(attnRow);
 
                     const attnExcusedRow = document.createElement('tr');
                     attnExcusedRow.innerHTML = '<td>Attendance (+Excused)</td>';
                     for (const month of months) {
-                        attnExcusedRow.innerHTML += `<td>${overall.months[month].attendanceWithExcused.toFixed(1)}%</td>`;
+                        attnExcusedRow.innerHTML += `<td>${fmt(overall.months[month].attendanceWithExcused, 1)}%</td>`;
                     }
-                    attnExcusedRow.innerHTML += `<td>${overall.attendanceWithExcused.toFixed(1)}%</td>`;
+                    attnExcusedRow.innerHTML += `<td>${fmt(overall.attendanceWithExcused, 1)}%</td>`;
                     overallBody.appendChild(attnExcusedRow);
 
                     updateTime(stats, months);
@@ -154,12 +161,12 @@
                         row.innerHTML = `<td>${user.name}</td>`;
                         for (const month of months) {
                             if (user.months[month]) {
-                                row.innerHTML += `<td>${user.months[month][(excused) ? 'attendanceWithExcused' : 'attendance'].toFixed(1)}%</td>`;
+                                row.innerHTML += `<td>${fmt(user.months[month][(excused) ? 'attendanceWithExcused' : 'attendance'], 1)}%</td>`;
                             } else {
                                 row.innerHTML += `<td>0%</td>`;
                             }
                         }
-                        row.innerHTML += `<td>${user[(excused) ? 'attendanceWithExcused' : 'attendance'].toFixed(1)}%</td>`;
+                        row.innerHTML += `<td>${fmt(user[(excused) ? 'attendanceWithExcused' : 'attendance'], 1)}%</td>`;
                         attnBody.appendChild(row);
                     }
                     
@@ -199,12 +206,12 @@
                         row.innerHTML = `<td>${user.name}</td>`;
                         for (const month of months) {
                             if (user.months[month]) {
-                                row.innerHTML += `<td>${user.months[month].hours.toFixed(2)}</td>`;
+                                row.innerHTML += `<td>${fmt(user.months[month].hours, 2)}</td>`;
                             } else {
                                 row.innerHTML += `<td>0</td>`;
                             }
                         }
-                        row.innerHTML += `<td>${user.hours.toFixed(2)}</td>`;
+                        row.innerHTML += `<td>${fmt(user.hours, 2)}</td>`;
                         timeBody.appendChild(row);
                     }
                     

@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { GoogleSpreadsheet, GoogleSpreadsheetWorksheet } from 'google-spreadsheet';
+import { GoogleSpreadsheet, GoogleSpreadsheetRow, GoogleSpreadsheetWorksheet } from 'google-spreadsheet';
 import { JWT } from 'google-auth-library';
 import { getTime } from './util';
 
@@ -19,7 +19,7 @@ const serviceAccountAuth = new JWT({
 const doc = new GoogleSpreadsheet(process.env.SPREADSHEET_ID || "", serviceAccountAuth);
 
 let logSheet: GoogleSpreadsheetWorksheet | undefined;
-let currentSheet: GoogleSpreadsheetWorksheet | undefined;
+let usersSheet: GoogleSpreadsheetWorksheet | undefined;
 let connectPromise: Promise<boolean> | undefined;
 
 type UsersRowData = {
@@ -37,20 +37,191 @@ type UsersRowData = {
 };
 
 export async function connect() {
-    connectPromise = new Promise(async (resolve, reject) => {
-        await doc.loadInfo(); // loads document properties and worksheets
+    if (connectPromise) return connectPromise;
 
-        logSheet = doc.sheetsByIndex[0];
-        currentSheet = doc.sheetsByIndex[1];
-        currentSheet.setHeaderRow(['pin', 'fname', 'lname', 'email', 'type', 'gender', 'login', 'logout', 'hours', 'total', 'loggedin']);
-        resolve(true);
-    });
+    connectPromise = (async () => {
+        await doc.loadInfo();
+
+        const users = doc.sheetsByIndex[0];
+        const log = doc.sheetsByIndex[1];
+
+        if (!users || !log) {
+            throw new Error('Required sheets not found');
+        }
+
+        usersSheet = users;
+        logSheet = log;
+
+        await users.setHeaderRow([
+            'pin',
+            'fname',
+            'lname',
+            'email',
+            'type',
+            'gender',
+            'login',
+            'logout',
+            'hours',
+            'total',
+            'loggedin'
+        ]);
+
+        // ─────────────────────────────────────────────
+        // Load rows
+        // ─────────────────────────────────────────────
+        const userRows = await users.getRows<UsersRowData>();
+        let logRows = await log.getRows();
+
+        // ─────────────────────────────────────────────
+        // Build authoritative user map
+        // ─────────────────────────────────────────────
+        const usersByPin = new Map<string, GoogleSpreadsheetRow<UsersRowData>>();
+        for (const row of userRows) {
+            const pin = row.get('pin');
+            if (pin) usersByPin.set(pin, row);
+        }
+
+        // ─────────────────────────────────────────────
+        // Build log pin set
+        // ─────────────────────────────────────────────
+        const logPins = new Set<string>();
+        for (const row of logRows) {
+            const pin = row['_rawData']?.[0];
+            if (pin) logPins.add(pin);
+        }
+
+        // ─────────────────────────────────────────────
+        // 1. Add missing users to log (pin + fname + lname)
+        // ─────────────────────────────────────────────
+        const rowsToAdd: any[][] = [];
+
+        for (const [pin, user] of usersByPin) {
+            if (!logPins.has(pin)) {
+                rowsToAdd.push([
+                    pin,
+                    user.get('fname'),
+                    user.get('lname')
+                ]);
+            }
+        }
+
+        if (rowsToAdd.length > 0) {
+            await log.addRows(rowsToAdd);
+        }
+
+        // Reload after inserts
+        logRows = await log.getRows();
+
+        // ─────────────────────────────────────────────
+        // 2. Always sync fname/lname for existing pins
+        // ─────────────────────────────────────────────
+        for (const row of logRows) {
+            const pin = row['_rawData']?.[0];
+            if (!pin) continue;
+
+            const user = usersByPin.get(pin);
+            if (!user) continue;
+
+            const fname = user.get('fname');
+            const lname = user.get('lname');
+
+            let dirty = false;
+
+            if (row['_rawData'][1] !== fname) {
+                row['_rawData'][1] = fname;
+                dirty = true;
+            }
+
+            if (row['_rawData'][2] !== lname) {
+                row['_rawData'][2] = lname;
+                dirty = true;
+            }
+
+            if (dirty) {
+                await row.save();
+            }
+        }
+
+        // ─────────────────────────────────────────────
+        // 3. Identify orphan rows (pins not in users)
+        // ─────────────────────────────────────────────
+        const orphanRows = logRows.filter(row => {
+            const pin = row['_rawData']?.[0];
+            return pin && !usersByPin.has(pin);
+        });
+
+        if (orphanRows.length > 0) {
+            // Load grid
+            await log.loadCells();
+
+            const originalRowCount = log.rowCount;
+            const newRowCount = originalRowCount + orphanRows.length;
+
+            // Resize sheet
+            await log.resize({
+                rowCount: newRowCount,
+                columnCount: log.columnCount
+            });
+
+            // Reload grid after resize
+            await log.loadCells();
+
+            let writeRow = originalRowCount;
+
+            // Copy orphan rows to bottom + color red
+            for (const row of orphanRows) {
+                const sourceRowIndex = row.rowNumber - 1;
+
+                for (let col = 0; col < log.columnCount; col++) {
+                    const src = log.getCell(sourceRowIndex, col);
+                    const dst = log.getCell(writeRow, col);
+
+                    dst.value = src.value;
+                    dst.textFormat = {
+                        foregroundColor: { red: 1, green: 0, blue: 0 }
+                    };
+                }
+
+                writeRow++;
+            }
+
+            // Clear original orphan rows
+            for (const row of orphanRows) {
+                const sourceRowIndex = row.rowNumber - 1;
+                for (let col = 0; col < log.columnCount; col++) {
+                    log.getCell(sourceRowIndex, col).value = null;
+                }
+            }
+
+            await log.saveUpdatedCells();
+        }
+
+        // ─────────────────────────────────────────────
+        // 4. Remove blank rows (no pin)
+        // ─────────────────────────────────────────────
+        const finalLogRows = await log.getRows();
+
+        const rowsToDelete = finalLogRows.filter(
+            row => !row['_rawData']?.[0]
+        );
+
+        // Delete bottom → top to preserve indices
+        for (const row of rowsToDelete.reverse()) {
+            await row.delete();
+        }
+
+        return true;
+    })();
+
+    return connectPromise;
 }
+
+
 
 export async function getUserFromPin(pin: string) {
     await connectPromise;
-    if (currentSheet) {
-        const rows = await currentSheet.getRows<UsersRowData>();
+    if (usersSheet) {
+        const rows = await usersSheet.getRows<UsersRowData>();
         const user = rows.find(row => row.get('pin') == pin);
         return user;
     }
