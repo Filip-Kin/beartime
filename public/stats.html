@@ -18,6 +18,19 @@
     </head>
 
     <body>
+        <button
+            id="logout-btn"
+            class="btn red"
+            style="
+                position: fixed;
+                top: 16px;
+                right: 16px;
+                z-index: 1000;
+            "
+        >
+            Log out
+        </button>
+
         <div class="container center">
             <div class="row">
                 <div class="col s12">
@@ -78,6 +91,22 @@
             <script>
                 M.AutoInit();
 
+                let PIN = localStorage.getItem('stats_pin');
+
+                if (!PIN) {
+                    PIN = prompt('Enter mentor PIN');
+                    if (!PIN) {
+                        alert('PIN required');
+                        throw new Error('No PIN');
+                    }
+                    localStorage.setItem('stats_pin', PIN);
+                }
+
+                document.getElementById('logout-btn')?.addEventListener('click', () => {
+                    localStorage.removeItem('stats_pin');
+                    window.location.replace('/');
+                });
+
                 const MONTHS = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
                 function fmt(num, digits) {
@@ -95,7 +124,7 @@
                     const overallHeader = document.getElementById('overall-header');
                     const overallBody = document.getElementById('overall-body');
 
-                    const res = await fetch('/stats').then(res => res.json());
+                    const res = await fetch('/stats?pin=' + encodeURIComponent(PIN)).then(res => res.json());
                     const stats = res.stats;
                     const overall = res.overall;
                     const months = Object.keys(overall.months);

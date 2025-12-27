@@ -39,7 +39,23 @@ app.get('/login', async (req: Request, res: Response) => {
 });
 
 app.get('/stats', async (req: Request, res: Response) => {
-    res.send(await getStats());
+    const pin = req.query.pin as string | undefined;
+
+    if (!pin) {
+        return res.status(401).json({ error: 'PIN required' });
+    }
+
+    const user = await getUserFromPin(pin);
+
+    if (!user) {
+        return res.status(403).json({ error: 'Invalid PIN' });
+    }
+
+    if (user.get('type') !== 'MENTOR') {
+        return res.status(403).json({ error: 'Access denied' });
+    }
+
+    res.json(await getStats());
 });
 
 app.listen(port, () => {
