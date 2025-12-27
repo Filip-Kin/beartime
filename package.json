@@ -20,6 +20,9 @@
     "build": "tsc",
     "dev": "nodemon"
   },
+  "engines": {
+    "node": "22"
+  },
   "author": "",
   "license": "ISC",
   "description": ""
